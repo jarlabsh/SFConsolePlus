@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "Salesforce Console Plus",
+    "version": "1.0",
+    "description": "Adds search feature for test coverage table. Automatically clears log panel from SF dev console when you switch between tabs/window.",
+    "permissions": [
+      "tabs",
+      "scripting",
+      "activeTab","storage"
+    ],
+    "action": {
+    "default_popup": "popup.html"
+  },
+    "host_permissions": [
+      "*://*.salesforce.com/*",
+      "*://*.force.com/*"
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": [
+          "*://*.salesforce.com/*",
+          "*://*.force.com/*"
+        ],
+        "js": ["content.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "icons": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    },
+    "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["*://*.salesforce.com/*",
+          "*://*.force.com/*"]
+    }
+  ]
+  }
+  
+  
