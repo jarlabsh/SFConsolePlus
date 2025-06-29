@@ -12,6 +12,7 @@ Intended for chromium based browsers
 - Instant search with saved filter using `sessionStorage`. Don't have to search again if refreshed 
 - Focus on your test class with search and realtime coverage update. Running tests or saving classes won't reset table state
 - A clear log panel for prototyping 
+![Screensh1](https://github.com/user-attachments/assets/dba0eae1-a7d8-4787-b328-8c0437b17040)
 
 ## 🚀 Installation
 
