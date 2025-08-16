@@ -1,15 +1,71 @@
-let shortcutEnabled = true;  
-const script = document.createElement('script');
+let shortcutEnabled = true;
+let isReady = false;
 
-script.src = chrome.runtime.getURL('injected.js');
-script.onload = function () {
-  this.remove();
-};
-(document.head || document.documentElement).appendChild(script);
+function initializeContentScript() {
+  chrome.storage.local.get({ shortcutEnabled: true }, function(result) {
+    shortcutEnabled = result.shortcutEnabled;
+  });
+  
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('injected.js');
+  script.onload = function() {
+  };
+  (document.head || document.documentElement).appendChild(script);
+}
 
-// Initialize shortcut state from storage
-chrome.storage.local.get({ shortcutEnabled: true }, function(result) {
-  shortcutEnabled = result.shortcutEnabled;
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeContentScript);
+} else {
+  initializeContentScript();
+}
+
+window.addEventListener('message', (event) => {
+  if (event.data?.type === 'requestSearchSyncState') {
+    chrome.storage.local.get({ searchSyncEnabled: true }, result => {
+      window.postMessage({ type: 'searchSyncToggleUpdate', value: result.searchSyncEnabled }, '*');
+    });
+  }
+});
+
+chrome.storage.local.get({ searchSyncEnabled: true }, result => {
+  window.postMessage({ type: 'searchSyncToggleUpdate', value: result.searchSyncEnabled }, '*');
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  try {
+    if (request.action === "updateShortcutState") {
+      shortcutEnabled = request.enabled;
+      sendResponse({ status: "shortcut updated", ready: isReady });
+      return true;
+
+    } else if (request.action === "updateSearchSyncState") {
+      chrome.storage.local.set({ searchSyncEnabled : request.enabled });
+      // Notify injected.js
+      window.postMessage({ type: 'searchSyncToggleUpdate', value: request.enabled }, '*');
+      
+      sendResponse({ status: "search sync updated", ready: isReady });
+      return true;
+
+    } else if (request.action === "triggerShortcut" &&
+               window.location.href.includes('_ui/common/apex/debug/ApexCSIPage')) {
+      triggerShortcut();
+      sendResponse({ status: "shortcut triggered", ready: isReady });
+      return true;
+    }
+    
+  } catch (error) {
+    console.error('Error handling message:', error);
+    sendResponse({ status: "error", error: error.message });
+    return true;
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (shortcutEnabled &&
+      document.hidden &&
+      window.location.href.includes('_ui/common/apex/debug/ApexCSIPage')) {
+    triggerShortcut();
+  }
 });
 
 function triggerShortcut() {
@@ -39,55 +95,7 @@ function triggerShortcut() {
   ];
 
   events.forEach(event => {
-    // window.dispatchEvent(event);
-    // document.dispatchEvent(event);
     const activeElement = document.activeElement || document.body;
     activeElement.dispatchEvent(event);
   });
 }
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "updateShortcutState") {
-    shortcutEnabled = request.enabled;
-    sendResponse({ status: "updated" });
-  } else if (request.action === "triggerShortcut" && 
-             window.location.href.includes('_ui/common/apex/debug/ApexCSIPage')) {
-    triggerShortcut();
-  }
-});
-
-document.addEventListener('visibilitychange', () => {
-  if (shortcutEnabled && 
-      document.hidden && 
-      window.location.href.includes('_ui/common/apex/debug/ApexCSIPage')) {
-    triggerShortcut();
-  }
-});
-document.addEventListener('DOMContentLoaded', function() {
-  const toggle = document.getElementById('shortcutToggle');
-  const browserAPI = getBrowserAPI();
-
-  // Load initial state
-  browserAPI.storage.local.get({ shortcutEnabled: true }, function(result) {
-    toggle.checked = result.shortcutEnabled;
-  });
-  
-  toggle.addEventListener('click', function() {
-    const newState = toggle.checked;
-    
-    browserAPI.storage.local.set({ shortcutEnabled: newState }, () => {
-      
-      browserAPI.tabs.query({}, function(tabs) {
-        tabs.forEach(tab => {
-          if (tab.url && tab.url.includes('salesforce.com')) {
-            browserAPI.tabs.sendMessage(
-              tab.id,
-              { action: "updateShortcutState", enabled: newState }
-            );            
-          }
-        });
-      });
-    });
-  });
-});
-

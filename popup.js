@@ -22,6 +22,13 @@ function getBrowserAPI() {
       toggle.checked = result.shortcutEnabled;
   });
   
+    function sendMessageToTab(tabId, message, callback) {
+      browserAPI.tabs.sendMessage(tabId, message, function(response) {
+        if (callback) {
+          callback(response);
+        }
+      });
+    }
     
     // Handle toggle changes
     toggle.addEventListener('click', function() {
@@ -33,18 +40,46 @@ function getBrowserAPI() {
         browserAPI.tabs.query({}, function(tabs) {
           tabs.forEach(tab => {
             if (tab.url && tab.url.includes('salesforce.com')) {
-              browserAPI.tabs.sendMessage(
-                tab.id,
-                { action: "updateShortcutState", enabled: newState },
-                function(response) {
-                    if (browserAPI.runtime.lastError) {
-                        console.log(`Error sending message to Tab ${tab.id}:`, browserAPI.runtime.lastError.message);
-                    } else {
-                        console.log(`Message sent to Tab ${tab.id}:`, response);
+              // Check if tab is still valid before sending message
+              browserAPI.tabs.get(tab.id, function(tabInfo) {
+                if (!browserAPI.runtime.lastError && tabInfo) {
+                  sendMessageToTab(
+                    tab.id,
+                    { action: "updateShortcutState", enabled: newState },
+                    function(response) {
                     }
+                  );
                 }
-            );            
+              });
             }
+          });
+        });
+      });
+    });
+    
+    const searchSyncToggle = document.getElementById("searchSyncToggle");
+
+    browserAPI.storage.local.get({ searchSyncEnabled: true }, (result) => {
+      searchSyncToggle.checked = result.searchSyncEnabled;
+    });
+
+    searchSyncToggle.addEventListener("change", () => {
+      const newState = searchSyncToggle.checked;
+
+      browserAPI.storage.local.set({ searchSyncEnabled: newState }, () => {
+        browserAPI.tabs.query({ 
+          url: "*://*.salesforce.com/*",
+          status: "complete"
+        }, (tabs) => {
+          tabs.forEach((tab) => {
+            browserAPI.tabs.get(tab.id, function(tabInfo) {
+              if (!browserAPI.runtime.lastError && tabInfo && tabInfo.status === 'complete') {
+                sendMessageToTab(
+                  tab.id,
+                  { action: "updateSearchSyncState", enabled: newState }
+                );
+              }
+            });
           });
         });
       });
